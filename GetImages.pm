@@ -1,5 +1,5 @@
 package HTTP::GetImages;
-our $VERSION=0.2;
+our $VERSION=0.21;
 
 =head1 NAME
 
@@ -9,7 +9,7 @@ HTTP::GetImages
 
 Recover and locally store images from the web, including those linked by anchor and image map.
 
-Version 0.2 also gets images from C<A>nchor elements' and image-map C<AREA> elements' C<HREF>/C<SRC>. attributes.
+Version 0.2+ also gets images from C<A>nchor elements' and image-map C<AREA> elements' C<HREF>/C<SRC>. attributes.
 
 =head1 SYNOPSIS
 
@@ -190,7 +190,7 @@ Returns the path the image was saved at.
 sub _save_img { my ($self,$dir,$url,$img) = (shift,shift,shift,shift);
 	local *OUT;
 	# Remvoe any file path from the $url
-	if (exists $self->{$url}){
+	if (exists $self->{DONE}->{$url} or exists $self->{FAILED}->{$url}){
 		warn "Already got this one ($url), not saving.\n" if defined $chat;
 		return undef;
 	}
