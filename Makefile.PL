@@ -4,5 +4,5 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     'NAME'		=> 'HTTP::GetImages',
     'VERSION_FROM'	=> 'GetImages.pm', # finds $VERSION
-    'PREREQ_PM'		=> {}, # e.g., Module::Name => 1.1
+    'PREREQ_PM'		=> {LWP::UserAgent=>0.1,HTTP::Request=>0.1,HTML::TokeParser=>0.1}, # e.g., Module::Name => 1.1
 );

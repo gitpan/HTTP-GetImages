@@ -1,7 +1,7 @@
 Revision history for Perl extension HTTP::GetImages.
 
-0.021  Mon May  7 16:44:00 2001
-	- updated a little bug on _save_img that allow double saving
+0.03  Mon Jun  4 19:00:00 2001
+	- bug fix and updated features
 
 0.02  Sun May  6 01:18:40 2001
 	- version; created by h2xs 1.20 with options
