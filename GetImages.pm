@@ -1,5 +1,5 @@
 package HTTP::GetImages;
-our $VERSION=0.34;
+our $VERSION=0.342;
 
 =head1 NAME
 
@@ -215,7 +215,7 @@ sub new { my ($class) = (shift);
 		$self->{dont} = {};
 		foreach (@_){ $self->{dont}->{$_} = 1 }
 	}
-	
+
 	# Slots that are not adjustable by user:
 	$self->{DONE}	= {};
 	$self->{FAILED} = {};
