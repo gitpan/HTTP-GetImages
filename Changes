@@ -1,6 +1,6 @@
 Revision history for Perl extension HTTP::GetImages.
 
-0.01  Sat May  5 16:25:11 2001
-	- original version; created by h2xs 1.20 with options
+0.02  Sun May  6 01:18:40 2001
+	- version; created by h2xs 1.20 with options
 		-Xcfn HTTP::GetImages
 
