@@ -1,11 +1,16 @@
 package HTTP::GetImages;
-our $VERSION=0.342;
+
+use vars qw /$EXTENSIONS_RE $EXTENSIONS_BAD $VERSION/;
+
+$VERSION=0.343;
 
 =head1 NAME
 
-HTTP::GetImages - recover and store images from web pages.
+HTTP::GetImages - Spider to recover and store images from web pages.
 
 =head1 SYNOPSIS
+
+	use HTTP::GetImages;
 
 	$_ = new HTTP::GetImages (
 		dir  => '.',
@@ -65,13 +70,13 @@ Defaults to off.
 
 =cut
 
-our $CHAT;
+my $CHAT;
 
 # Default values to apply to $self->{ext_ok}
-our $EXTENSIONS_RE = '(jpg|jpeg|bmp|gif|png|xbm|xmp)';
+$EXTENSIONS_RE = '(jpg|jpeg|bmp|gif|png|xbm|xmp)';
 
 # Default values for $self->{ext_bad}
-our $EXTENSIONS_BAD = '(wmv|avi|rm|mpg|asf|ram|asx|mpeg|mp3)';
+$EXTENSIONS_BAD = '(wmv|avi|rm|mpg|asf|ram|asx|mpeg|mp3)';
 
 
 =head1 CONSTRUCTOR METHOD new
@@ -79,6 +84,10 @@ our $EXTENSIONS_BAD = '(wmv|avi|rm|mpg|asf|ram|asx|mpeg|mp3)';
 Besides the class reference, accepts name=>value pairs:
 
 =over 4
+
+=item max_attempts
+
+The maximum attempts the agent should make to access the site. Default is three.
 
 =item dir
 
@@ -100,7 +109,7 @@ one or more URL to process: can be an anonymous array, array reference, or scala
 As C<todo>, above, but URLs should be ignored.
 
 If one of these is C<ALL>, then will ignore all B<HTML> documents
-that are not in the C<todo> array of URLs to process.
+that do not match exactly those in the C<todo> array of URLs to process.
 If one of these is C<NONE>, will ignore no documents.
 
 =item ext_ok
@@ -173,6 +182,7 @@ sub new { my ($class) = (shift);
 	$self->{ext_ok} = $EXTENSIONS_RE;	# Defualt extensions to use
 	$self->{ext_bad} = $EXTENSIONS_BAD; # Ditto for ignore.
 	$self->{rename} = 0;
+	$self->{max_attempts} = 3;
 
 	# Set/overwrite public slots with user's values
 	foreach (keys %args) {
@@ -251,6 +261,12 @@ sub new { my ($class) = (shift);
 			next DOC;
 		}
 
+		if (exists $self->{dont}->{ALL} and not $self->{todo}->{$doc_url}){
+			warn "Not in TODO list: $doc_url.\n" if $CHAT;
+			delete $self->{todo}->{$doc_url};
+			next DOC;
+		}
+
 		# Not in do list, not an image, not run with IGNORE NONE option
 		if (not exists $self->{todo}->{$doc_url} and $doc_url !~ m|(\.$self->{ext_ok})$|i
 		and not exists $self->{dont}->{NONE}){
@@ -292,22 +308,32 @@ sub new { my ($class) = (shift);
 			if (@$token[1] eq 'img' and exists @$token[2]->{src}){
 				warn "*** Found image: @$token[2]->{src}\n" if $CHAT;
 				my $uri = &abs_url( $doc_url, @$token[2]->{src} );
-				if ($uri and not exists $self->{IGNORE0}->{$uri} and not exists $self->{DONE}->{$uri} and not exists $self->{FAILED}->{$uri}){
+				if ($uri and not exists $self->{IGNORE0}->{$uri} and not exists $self->{DONE}->{$uri} and not exists $self->{FAILED}->{$uri}
+				){
 					$self->{todo}->{$uri} = 1;
+				} else {
+					warn "\t ignoring that img.\n" if $CHAT;
 				}
 			}
 			elsif (@$token[1] =~ /^(area|a)$/ and exists @$token[2]->{href} and @$token[0] eq 'S'){
 				warn "*** Found link: @$token[2]->{href}\n" if $CHAT;
 				my $uri = &abs_url( $doc_url, @$token[2]->{href} );
-				if ($uri and not exists $self->{dont}->{$uri} and not exists $self->{DONE}->{$uri} and not exists $self->{FAILED}->{$uri}){
+				if ($uri and not exists $self->{dont}->{$uri} and not exists $self->{DONE}->{$uri} and not exists $self->{FAILED}->{$uri}
+				and not (exists $self->{dont}->{ALL} and not exists $self->{todo}->{$uri})
+				){
 					$self->{todo}->{$uri} = 1;
+				} else {
+					warn "\t ignoring that link.\n" if $CHAT;
 				}
 			}
 			elsif (@$token[1] eq 'frame' and exists(@$token[2]->{src})){	# This block (DL)
 				warn "*** Found frame: @$token[2]->{src}\n" if $CHAT;
 				my $uri = &abs_url( $doc_url, @$token[2]->{src} );
-				if ($uri and not exists $self->{IGNORE0}->{$uri} and not exists $self->{DONE}->{$uri} and not exists $self->{FAILED}->{$uri}){
+				if ($uri and not exists $self->{IGNORE0}->{$uri} and not exists $self->{DONE}->{$uri} and not exists $self->{FAILED}->{$uri}
+				and not (exists $self->{dont}->{ALL} and not exists $self->{todo}->{$uri})				){
 					$self->{todo}->{$uri} = 1;
+				} else {
+					warn "\t ignoring that frame.\n" if $CHAT;
 				}
 			}
 		}	# Next token
@@ -331,19 +357,29 @@ sub get_document { my ($self,$url) = (shift,shift);		# Recieve as argument the U
 		warn "Ignoring - extension on the 'bad' list" if $CHAT;
 		return undef;
 	}
+	my ($req,$res);
 	my $ua = LWP::UserAgent->new;						# Create a new UserAgent
-	$ua->agent('Mozilla/6');							# Give it a type name
-	warn "Attempting to access <$url>...\n"  if $CHAT;
-	my $req = new HTTP::Request('GET', $url); 			# Format URL request
+	for my $attempt (1..$self->{max_attempts}){
+		if ($attempt!=1 and $attempt-1 == $self->{max_attempts}){
+			$ua->agent('MSIE Internet Explorer 6.0 (Mozilla compatible'); # Naughty?
+		} else {
+			$ua->agent('Perl::'.__PACKAGE__.' v'.$VERSION);	# Give it a type name
+		}
+		warn "Attempt ($attempt) to access <$url>...\n"  if $CHAT;
+		$req = new HTTP::Request('GET', $url); 			# Format URL request
+		next if not defined $req;
+		$res = $ua->request($req);						# $res is the object UA returned
+		last if $res->is_success();					# If not successful
+	}
 	if (not defined $req){
 		warn "...could not GET.\n" if $CHAT;
 		return undef;
 	}
-	my $res = $ua->request($req);						# $res is the object UA returned
 	if (not $res->is_success()) {						# If not successful
 		warn"...failed.\n"  if $CHAT;
 		return undef
 	}
+
 	warn "...ok.\n" if $CHAT;
 	# Test size
 	if ((exists $self->{max_size} or exists $self->{min_size})
@@ -517,7 +553,12 @@ Every thing and every one listed above under DEPENDENCIES.
 
 =head1 REVISIONS
 
-B<Version 0.32>, updates by Lee Goddard: fixed bugs..
+B<Version 0.34*>, updates by Lee Goddard:
+
+Re-implemented the C<dont => ['ALL']> feature that got lost during the redesign of the API;
+agent now makes multiple attempts to get the image.
+
+B<Version 0.32>, updates by Lee Goddard: fixed bugs.
 
 B<Version 0.31>, updates by Lee Goddard: added 'max_size'.
 
@@ -552,6 +593,7 @@ loop - but no more.
 =head1 USES
 
 C<GetImages.pm> is proud to be part of Duncan Lamb's C<HTTP::StegTest>:
+
 I<An example report can be found at http://64.192.146.9/ in which the library was run against several anti-American and "pro-Taliban" sites. The reports display images that changed between collections, images that tested positive for being altered by an outside program, and images which were "false positives." Over 25,000 images were tested across 10 sites.>
 
 =head1 AUTHOR

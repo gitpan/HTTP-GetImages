@@ -1,5 +1,11 @@
 Revision history for Perl extension HTTP::GetImages.
 
+Version 0.34*, updates by Lee Goddard:
+
+	Re-implemented the `dont =' ['ALL']> feature that got lost
+	during the redesign of the API; agent now makes multiple
+	attempts to get the image.
+
 Version 0.32, updates by Lee Goddard: fixed bugs..
 
 Version 0.31, updates by Lee Goddard: added 'max_size'.
